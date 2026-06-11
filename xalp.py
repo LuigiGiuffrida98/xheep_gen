@@ -86,7 +86,9 @@ class XAlp(System):
         :rtype: list[str]
         """
         names = super().get_configured_peripheral_names()
-        names.extend(peripheral.get_name() for peripheral in self._bus.get_all_peripherals())
+        names.extend(
+            peripheral.get_name() for peripheral in self._bus.get_all_peripherals()
+        )
         return names
 
     # ------------------------------------------------------------
