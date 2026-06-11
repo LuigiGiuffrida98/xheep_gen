@@ -1,7 +1,9 @@
 # Peripheral abstract classes
 
 import os.path as path
-from abc import ABC  # Used to define abstract classes that cannot be instantiated, only well defined subclasses can be instantiated.
+from abc import (
+    ABC,
+)  # Used to define abstract classes that cannot be instantiated, only well defined subclasses can be instantiated.
 from enum import Enum
 from copy import deepcopy
 from typing import List, Optional
