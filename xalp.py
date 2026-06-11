@@ -25,7 +25,7 @@ class XAlp(System):
     :raise TypeError: when parameters are of incorrect type.
     """
 
-    AVAILABLE_CPUS = ["cv32e40x"]
+    AVAILABLE_CPUS = ["cva6"]
     """Constant list of CPU names available for X-ALP."""
 
     AVAILABLE_PERIPHERALS = [
@@ -78,6 +78,7 @@ class XAlp(System):
         """
         super().build()
         self._bus.generate_address_map()
+        self._bus.build_address_map()
 
     def get_configured_peripheral_names(self):
         """

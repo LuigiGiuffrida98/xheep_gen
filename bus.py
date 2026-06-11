@@ -5,6 +5,77 @@ from typing import List, Optional
 from peripherals.abstractions import Peripheral, PeripheralDomain
 
 
+def _macro_name(name: str) -> str:
+    """
+    Normalize a node name into an uppercase macro-friendly identifier.
+
+    Strips the " Peripheral Domain" suffix that :class:`PeripheralDomain`
+    appends, then uppercases and replaces spaces with underscores. E.g.
+    "Peripherals Peripheral Domain" -> "PERIPHERALS", "soc_ctrl" -> "SOC_CTRL".
+    """
+    suffix = " Peripheral Domain"
+    if name.endswith(suffix):
+        name = name[: -len(suffix)]
+    return name.strip().upper().replace(" ", "_")
+
+
+class AxiMaster:
+    """
+    An AXI master endpoint on the bus (e.g. CPU, debug module, external master).
+
+    Masters carry no address; they are enumerated to assign crossbar master
+    indices.
+
+    :param str name: The name of the master.
+    """
+
+    def __init__(self, name: str):
+        if type(name) is not str or name == "":
+            raise ValueError("AxiMaster name should be a non-empty string")
+        self._name = name
+
+    def get_name(self) -> str:
+        """:return: the name of the master."""
+        return self._name
+
+
+class BusSlave:
+    """
+    A non-peripheral AXI slave window on the bus (e.g. MEM, DEBUG_MODULE,
+    EXT_SLAVE).
+
+    Exposes the same name/address accessors as peripherals and peripheral
+    subsystems so the address generator can treat every AXI slave uniformly.
+
+    :param str name: The name of the slave window.
+    :param int base: The start address of the window.
+    :param int size: The size of the window in bytes.
+    """
+
+    def __init__(self, name: str, base: int, size: int):
+        if type(name) is not str or name == "":
+            raise ValueError("BusSlave name should be a non-empty string")
+        if type(base) is not int or base < 0:
+            raise ValueError("BusSlave base should be a positive integer")
+        if type(size) is not int or size <= 0:
+            raise ValueError("BusSlave size should be a strictly positive integer")
+        self._name = name
+        self._start_address = base
+        self._length = size
+
+    def get_name(self) -> str:
+        """:return: the name of the slave window."""
+        return self._name
+
+    def get_start_address(self) -> int:
+        """:return: the start address of the slave window."""
+        return self._start_address
+
+    def get_length(self) -> int:
+        """:return: the size of the slave window in bytes."""
+        return self._length
+
+
 class Bus:
     """
     Represents a system bus.
@@ -19,17 +90,19 @@ class Bus:
 
     def __init__(
         self,
-        bus_type: BusType,
+        bus_type: Optional[BusType] = None,
         peripherals: Optional[List[Peripheral]] = None,
         domains: Optional[List[PeripheralDomain]] = None,
     ):
-        if not type(bus_type) is BusType:
+        if bus_type is not None and not type(bus_type) is BusType:
             raise TypeError(
                 f"Bus.bus_type should be of type BusType not {type(bus_type)}"
             )
         self._bus_type = bus_type
         self._peripherals = []
         self._domains = []
+        self._masters: List[AxiMaster] = []
+        self._slaves: list = []
 
         if domains is not None:
             if peripherals is not None:
@@ -40,7 +113,7 @@ class Bus:
         elif peripherals is not None:
             self._set_peripherals_or_domains(peripherals)
 
-    def bus_type(self) -> BusType:
+    def bus_type(self) -> Optional[BusType]:
         """
         :return: the type of the bus
         :rtype: BusType
@@ -133,8 +206,143 @@ class Bus:
             peripherals = []
             for domain in self._domains:
                 peripherals.extend(domain.get_peripherals())
-            return peripherals
-        return self.get_peripherals()
+        else:
+            peripherals = self.get_peripherals()
+        # Peripherals living inside AXI-slave peripheral subsystems.
+        for slave in self._slaves:
+            if isinstance(slave, PeripheralDomain):
+                peripherals.extend(slave.get_peripherals())
+        return peripherals
+
+    # ------------------------------------------------------------
+    # Masters / AXI slaves (bus-centric address model)
+    # ------------------------------------------------------------
+
+    def add_master(self, master: AxiMaster):
+        """
+        Add an AXI master endpoint to the bus.
+
+        :param AxiMaster master: The master to add.
+        :raise TypeError: when master is of incorrect type.
+        """
+        if not isinstance(master, AxiMaster):
+            raise TypeError("Bus master should be of type AxiMaster")
+        self._masters.append(master)
+
+    def get_masters(self):
+        """:return: The ordered list of AXI masters."""
+        return list(self._masters)
+
+    def add_slave(self, slave):
+        """
+        Add an AXI slave to the bus. A slave is either a :class:`BusSlave`
+        (a plain address window such as MEM / DEBUG_MODULE / EXT_SLAVE) or a
+        :class:`PeripheralDomain` (a peripheral subsystem whose register-interface
+        peripherals become REG slaves nested in its window).
+
+        :param slave: The slave node to add.
+        :raise TypeError: when slave is of incorrect type.
+        """
+        if not isinstance(slave, (BusSlave, PeripheralDomain)):
+            raise TypeError(
+                "Bus slave should be a BusSlave or a PeripheralDomain (peripheral subsystem)"
+            )
+        self._slaves.append(slave)
+
+    def get_slaves(self):
+        """:return: The ordered list of AXI slave nodes."""
+        return list(self._slaves)
+
+    def build_address_map(self):
+        """
+        Build the AXI slave windows and their nested register sub-buses, then
+        validate that the AXI slave windows do not overlap.
+
+        Each AXI slave must have an explicit base address. Peripheral subsystem
+        slaves are built so their register-interface peripherals get offsets
+        assigned.
+        """
+        for slave in self._slaves:
+            if slave.get_start_address() is None:
+                raise ValueError(
+                    f"AXI slave {slave.get_name()} must have an explicit base address"
+                )
+            if isinstance(slave, PeripheralDomain):
+                slave.build()
+        self._validate_axi_slaves()
+
+    def _validate_axi_slaves(self):
+        slaves = sorted(self._slaves, key=lambda s: s.get_start_address())
+        for current, nxt in zip(slaves, slaves[1:]):
+            current_end = current.get_start_address() + current.get_length()
+            if current_end > nxt.get_start_address():
+                raise ValueError(
+                    f"AXI slave {current.get_name()} (ends at {hex(current_end)}) "
+                    f"overlaps {nxt.get_name()} (starts at {hex(nxt.get_start_address())})"
+                )
+
+    def get_axi_masters(self):
+        """
+        :return: Ordered AXI masters as ``{name, macro, idx}`` entries.
+        :rtype: list[dict]
+        """
+        return [
+            {"name": m.get_name(), "macro": _macro_name(m.get_name()), "idx": i}
+            for i, m in enumerate(self._masters)
+        ]
+
+    def get_axi_slaves(self):
+        """
+        :return: Ordered AXI slave windows as ``{name, macro, idx, base, size, end}``.
+        :rtype: list[dict]
+        """
+        result = []
+        for i, slave in enumerate(self._slaves):
+            base = slave.get_start_address()
+            size = slave.get_length()
+            result.append(
+                {
+                    "name": slave.get_name(),
+                    "macro": _macro_name(slave.get_name()),
+                    "idx": i,
+                    "base": base,
+                    "size": size,
+                    "end": base + size,
+                }
+            )
+        return result
+
+    def get_reg_slaves(self):
+        """
+        :return: Register-interface slaves nested in peripheral subsystem AXI
+            windows, as ``{name, macro, idx, base, size, end}`` with absolute
+            addresses (subsystem base + peripheral offset).
+        :rtype: list[dict]
+        """
+        result = []
+        idx = 0
+        for slave in self._slaves:
+            if not isinstance(slave, PeripheralDomain):
+                continue
+            sub_base = slave.get_start_address()
+            for peripheral in slave.get_peripherals():
+                if not peripheral.has_reg_if_ports():
+                    continue
+                offset = peripheral.get_address() or 0
+                base = sub_base + offset
+                size = peripheral.get_length()
+                result.append(
+                    {
+                        "name": peripheral.get_name(),
+                        "macro": _macro_name(peripheral.get_name()),
+                        "idx": idx,
+                        "base": base,
+                        "size": size,
+                        "end": base + size,
+                    }
+                )
+                idx += 1
+        return result
 
     # ------------------------------------------------------------
     # Address Map
