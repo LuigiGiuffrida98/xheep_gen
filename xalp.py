@@ -40,7 +40,7 @@ class XAlp(System):
 
     MINIMUM_PERIPHERALS = [
         "soc_ctrl",
-        "bootrom",    
+        "bootrom",
     ]
     """Constant list of peripheral names that must be present in X-ALP."""
 
