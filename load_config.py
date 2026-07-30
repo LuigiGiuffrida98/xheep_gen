@@ -11,6 +11,7 @@ from cpu.cv32e40x import cv32e40x
 from memory_ss.memory_ss import MemorySS
 from memory_ss.linker_section import LinkerSection
 from memory_ss.linker_subsection import LinkerSubsection
+from linker_script.linker_script import LinkerScript
 from peripherals.peripheral_config_loader import load_peripherals_config
 from xheep import BusType, XHeep, CvXIf, PadRing
 
@@ -197,6 +198,26 @@ def load_linker_config(memory_ss: MemorySS, config: list):
         memory_ss.add_linker_section(LinkerSection(name, start, end))
 
 
+def load_linker_script_config(system: XHeep, config: hjson.OrderedDict):
+    """
+    Reads the linker script configuration.
+
+    :param XHeep system: the system object where the configuration should be added.
+    :param hjson.OrderedDict config: The linker script configuration.
+    """
+    if not isinstance(system, XHeep):
+        raise TypeError("system should be an instance of XHeep")
+    if type(config) is not hjson.OrderedDict:
+        raise TypeError("config should be of type hjson.OrderedDict")
+
+    stack_size = to_int(config["stack_size"]) if "stack_size" in config else None
+    heap_size = to_int(config["heap_size"]) if "heap_size" in config else None
+
+    system.set_linker_script_config(
+        LinkerScript(stack_size=stack_size, heap_size=heap_size)
+    )
+
+
 def load_cpu_config(
     system: XHeep, cpu_type_config: str, cpu_features_config: hjson.OrderedDict
 ):
@@ -256,6 +277,7 @@ def load_cfg_hjson(src: str) -> XHeep:
     mem_config = None
     bus_config = None
     linker_config = None
+    linker_script_config = None
 
     cpu_type_config = None
     cpu_features_config = hjson.OrderedDict()
@@ -267,6 +289,8 @@ def load_cfg_hjson(src: str) -> XHeep:
             bus_config = value
         elif key == "linker_sections":
             linker_config = value
+        elif key == "linker_script":
+            linker_script_config = value
         elif key == "cpu_type":
             cpu_type_config = value
         elif key == "cpu_features":
@@ -286,6 +310,8 @@ def load_cfg_hjson(src: str) -> XHeep:
 
     if linker_config is not None:
         load_linker_config(memory_ss, linker_config)
+    if linker_script_config is not None:
+        load_linker_script_config(system, linker_script_config)
 
     system.set_memory_ss(memory_ss)
 
