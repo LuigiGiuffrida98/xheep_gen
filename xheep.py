@@ -392,7 +392,8 @@ class XHeep:
 
         if self.are_base_peripherals_configured():
             self._base_peripheral_domain.validate(
-                self.address_map().get_region("base_peripheral_domain").get_length()
+                self.address_map().get_region("base_peripheral_domain").get_length(),
+                self._bus_type,
             )
         else:
             raise RuntimeError(

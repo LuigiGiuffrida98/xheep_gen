@@ -15,7 +15,6 @@ from peripherals.base_peripherals import (
     SOC_ctrl,
     Bootrom,
     SPI_flash,
-    SPI_memio,
     W25Q128JW_Controller,
     DMA,
     Power_manager,
@@ -56,8 +55,7 @@ def load_peripherals_config(system, config: hjson.OrderedDict, address_map: Addr
         "soc_ctrl": lambda o, l: SOC_ctrl(o, l),
         "bootrom": lambda o, l: Bootrom(o, l),
         "spi_flash": lambda o, l: SPI_flash(o, l),
-        "spi_memio": lambda o, l: SPI_memio(o, l),
-        "w25q128jw_controller": lambda o, l: W25Q128JW_Controller(o, l),
+        "w25q128jw_controller": _create_w25q128jw_controller_peripheral,  # Special handling for complex W25Q128JW controller config
         "dma": _create_dma_peripheral,  # Special handling for complex DMA config
         "power_manager": lambda o, l: Power_manager(o, l),
         "rv_timer_ao": lambda o, l: RV_timer_ao(o, l),
@@ -213,6 +211,52 @@ def _create_dma_peripheral(peripheral_config, offset, length):
     )
 
 
+def _create_w25q128jw_controller_peripheral(peripheral_config, offset, length):
+    """
+    Create W25Q128JW controller peripheral with its configuration.
+
+    W25Q128JW controller requires special handling because it has a cache
+    configuration parameter. This factory function encapsulates all
+    W25Q128JW-specific configuration logic.
+
+    Configuration Parameters:
+    -------------------------
+    - is_included: Whether the W25Q128JW controller is enabled (default: "yes")
+    - cache: Enable cache (yes/no)
+
+    When the W25Q128JW controller is not included (is_included="no"), minimal default values
+    are used to ensure the system can still be generated with a stubbed
+    W25Q128JW controller peripheral.
+
+    :param dict peripheral_config: W25Q128JW controller configuration dictionary
+    :param int offset: Memory address offset for W25Q128JW controller peripheral
+    :param int length: Memory length allocated to W25Q128JW controller peripheral
+    :return: Configured W25Q128JW controller peripheral instance
+    :rtype: W25Q128JW_Controller
+    :raises ValueError: If cache parameter is not "yes" or "no"
+    """
+    try:
+        w25q_is_included = (
+            "yes" if peripheral_config.get("is_included", "yes") == "yes" else "no"
+        )
+    except (KeyError, AttributeError):
+        w25q_is_included = "yes"
+
+    if w25q_is_included == "yes":
+        cache = peripheral_config.get("cache", "no")
+        if cache not in ["no", "yes"]:
+            raise ValueError("cache should be no or yes")
+    else:
+        # Use minimal defaults when W25Q128JW controller is not included
+        cache = "no"
+
+    return W25Q128JW_Controller(
+        address=offset,
+        length=length,
+        cache=cache,
+    )
+
+
 def _load_domain_peripherals(
     system,
     fields,
@@ -303,8 +347,8 @@ def _create_peripheral_from_config(
 
     factory = peripheral_factory_map[peripheral_name]
 
-    # Special handling for DMA (has complex configuration)
-    if peripheral_name == "dma":
+    # Special handling for complex configuration
+    if peripheral_name in ["dma", "w25q128jw_controller"]:
         return factory(peripheral_config, offset, length)
     else:
         return factory(offset, length)
