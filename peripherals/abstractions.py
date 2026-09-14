@@ -83,19 +83,6 @@ class Peripheral(ABC):
             raise ValueError("Peripheral address should be a positive integer")
         self._address_offset = address
 
-    def get_start_address(self):
-        """
-        :return: The manually configured start address, or None if automatic placement is enabled.
-        :rtype: int
-        """
-        return self.get_address()
-
-    def set_start_address(self, address: int):
-        """
-        Set the peripheral start address by hand.
-        """
-        self.set_address(address)
-
     def use_auto_start_address(self):
         """
         Let the bus or domain assign the peripheral start address automatically.
@@ -112,13 +99,6 @@ class Peripheral(ABC):
     def get_length(self):
         """
         :return: The length of the peripheral.
-        :rtype: int
-        """
-        return self._length
-
-    def get_size_bytes(self):
-        """
-        :return: The size of the peripheral in bytes.
         :rtype: int
         """
         return self._length

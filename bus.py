@@ -500,7 +500,7 @@ class Bus:
                             "address": domain.get_start_address()
                             + peripheral.get_address(),
                             "offset": peripheral.get_address(),
-                            "size": peripheral.get_size_bytes(),
+                            "size": peripheral.get_length(),
                         }
                     )
             return sorted(address_map, key=lambda entry: entry["address"])
