@@ -31,34 +31,25 @@ class Peripheral(ABC):
         self,
         offset=None,
         length=None,
-        region: Optional[AddressRegion] = None,
         num_master_ports: int = 0,
     ):
         """
-        Initialize the peripheral with the region it occupies in its domain.
+        Initialize the peripheral with the address range it occupies in its domain.
 
-        The region is the peripheral's window, relative to the start of the
-        peripheral domain it belongs to. Every peripheral is reachable through
-        its register interface, so the region is what makes it a register
-        slave of the domain; no extra flag declares it.
+        The address range is defined relative to the start of the peripheral
+        domain it belongs to. Every peripheral is reachable through its
+        register interface, so this range identifies the portion of the domain
+        assigned to it; no extra flag declares it.
 
-        The region may be given either directly or as an offset and a length.
-        A region without a start address is placed automatically during
+        The address range may be given either directly or as an offset and a
+        length. A range without a start address is assigned automatically during
         :meth:`PeripheralDomain.build`.
 
-        :param int offset: The virtual (in peripheral domain) memory address of the peripheral. If None, the offset will be automatically compute during build function.
+        :param int offset: The virtual (in peripheral domain) memory address of the peripheral. If None, the offset will be automatically computed during build function.
         :param int length: The size taken in memory by the peripheral. If None, the length will be automatically set to 64KB.
-        :param AddressRegion region: The region of the peripheral, as an alternative to offset and length.
         :param int num_master_ports: Number of master ports. Zero when the peripheral does not master the bus.
-        :raise ValueError: when both a region and an offset or a length are given.
+        :raise ValueError: when both an address range and an offset or a length are given.
         """
-        if region is not None:
-            if offset is not None or length is not None:
-                raise ValueError(
-                    "Peripheral should be configured with either a region or an offset and a length, not both"
-                )
-            offset = region.get_start_address()
-            length = region.get_length()
 
         if type(offset) == int and offset >= 0x00000000:
             self._address_offset = offset
@@ -73,13 +64,6 @@ class Peripheral(ABC):
         if num_master_ports < 0:
             raise ValueError("Number of master ports should be positive")
         self._num_master_ports = num_master_ports
-
-    def get_region(self) -> AddressRegion:
-        """
-        :return: The peripheral's window, relative to the start of its domain.
-        :rtype: AddressRegion
-        """
-        return AddressRegion(self.get_name(), self._address_offset, self._length)
 
     def get_address(self):
         """
