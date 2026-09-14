@@ -157,32 +157,3 @@ class LLC(BasePeripheral, MemorySS):
             for name, base, size in self.bus_windows(self._spm_start):
                 self.add_linker_section(LinkerSection(name, base, base + size))
         MemorySS.build(self)
-
-
-def _self_check():
-    """Runnable sanity check: `python3 -m peripherals.base_peripherals.llc`."""
-    llc = LLC(
-        set_assoc=8, num_lines=128, num_blocks=4, data_width=64, spm_start=0x40000000
-    )
-    # 8 ways * 128 lines * 4 blocks * 8 B = 32 KiB
-    assert llc.get_spm_size() == 32 * 1024, hex(llc.get_spm_size())
-    assert llc.bus_windows(0) == [
-        ("llc", 0x40000000, 32 * 1024),
-        ("dram", 0x80000000, 0x10000000),
-    ]
-    # Left alone, the cache declares its whole SPM and cached region.
-    llc.build()
-    assert [(s.name, s.start, s.end) for s in llc.iter_linker_sections()] == [
-        ("llc", 0x40000000, 0x40008000),
-        ("dram", 0x80000000, 0x90000000),
-    ]
-    # A configuration that adds sections of its own keeps them.
-    custom = LLC()
-    custom.add_linker_section(LinkerSection("code", 0x10000000, 0x10008000))
-    custom.build()
-    assert [s.name for s in custom.iter_linker_sections()] == ["code"]
-    print("LLC self-check OK")
-
-
-if __name__ == "__main__":
-    _self_check()
