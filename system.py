@@ -5,7 +5,6 @@
 # Author(s): Luigi Giuffrida
 # Description: Generic representation of a generated system.
 
-from copy import deepcopy
 from typing import List
 
 from bus_type import BusType
@@ -247,8 +246,7 @@ class System:
     def add_domain(self, domain: PeripheralDomain):
         """
         Add a domain to the system. The domain should already contain all
-        peripherals well configured. When adding a domain, a deepcopy is
-        made to avoid side effects.
+        peripherals well configured.
 
         :param PeripheralDomain domain: The domain to add.
         :raise TypeError: when domain is of incorrect type.
@@ -262,7 +260,7 @@ class System:
             raise ValueError(
                 f"A domain named {domain.get_name()} is already present in the system"
             )
-        self._domains.append(deepcopy(domain))
+        self._domains.append(domain)
 
     def remove_domain(self, name: str):
         """
@@ -283,8 +281,7 @@ class System:
 
     def _find_domain(self, domain_type):
         """
-        Returns the stored domain of the given type, not a copy, so that
-        callers can build or validate it in place.
+        Returns the stored domain of the given type.
 
         :param type domain_type: The domain class to look for.
         :return: The stored domain, `None` if not present.
@@ -297,12 +294,10 @@ class System:
 
     def get_domains(self):
         """
-        Returns a deepcopy of the list of all domains.
-
         :return: The domains.
         :rtype: list[PeripheralDomain]
         """
-        return [deepcopy(d) for d in self._domains]
+        return list(self._domains)
 
     def get_available_peripherals(self):
         """

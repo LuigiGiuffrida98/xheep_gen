@@ -5,7 +5,6 @@
 # Author(s): marinPh, David Mallasén
 # Description: X-HEEP System configuration.
 
-from copy import deepcopy
 
 from bus_type import BusType
 from system import System
@@ -47,7 +46,7 @@ class XHeep(System):
 
     def add_peripheral_domain(self, domain: PeripheralDomain):
         """
-        Add a peripheral domain to the system. The domain should already contain all peripherals well configured. When adding a domain, a deepcopy is made to avoid side effects.
+        Add a peripheral domain to the system. The domain should already contain all peripherals well configured.
 
         X-HEEP holds at most one base and one user peripheral domain, so a
         domain replaces the one of the same kind if it is already present.
@@ -66,21 +65,17 @@ class XHeep(System):
 
     def get_base_peripheral_domain(self):
         """
-        Returns a deepcopy of the base peripheral domain.
-
         :return: The base peripheral domain, `None` if not present.
         :rtype: BasePeripheralDomain
         """
-        return deepcopy(self._find_domain(BasePeripheralDomain))
+        return self._find_domain(BasePeripheralDomain)
 
     def get_user_peripheral_domain(self):
         """
-        Returns a deepcopy of the user peripheral domain.
-
         :return: The user peripheral domain, `None` if not present.
         :rtype: UserPeripheralDomain
         """
-        return deepcopy(self._find_domain(UserPeripheralDomain))
+        return self._find_domain(UserPeripheralDomain)
 
     def are_base_peripherals_configured(self) -> bool:
         """
@@ -192,11 +187,11 @@ class XHeep(System):
         if self.linker_script():
             self.linker_script().build(self.memory_ss().linker_data_region_size())
         if self.address_map() and self.are_base_peripherals_configured():
-            self._find_domain(BasePeripheralDomain).build(
+            self.get_base_peripheral_domain().build(
                 self.address_map().get_region("base_peripheral_domain").get_length()
             )
         if self.address_map() and self.are_user_peripherals_configured():
-            self._find_domain(UserPeripheralDomain).build(
+            self.get_user_peripheral_domain().build(
                 self.address_map().get_region("user_peripheral_domain").get_length()
             )
         if self._interrupts:
@@ -238,7 +233,7 @@ class XHeep(System):
         self.address_map().validate()
 
         if self.are_base_peripherals_configured():
-            self._find_domain(BasePeripheralDomain).validate(
+            self.get_base_peripheral_domain().validate(
                 self.address_map().get_region("base_peripheral_domain").get_length(),
                 self._bus_type,
             )
@@ -247,7 +242,7 @@ class XHeep(System):
                 "[MCU-GEN] ERROR: Base peripheral domain must be configured"
             )
         if self.are_user_peripherals_configured():
-            self._find_domain(UserPeripheralDomain).validate(
+            self.get_user_peripheral_domain().validate(
                 self.address_map().get_region("user_peripheral_domain").get_length()
             )
         else:

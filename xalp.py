@@ -5,7 +5,6 @@
 # Author(s): Luigi Giuffrida
 # Description: X-ALP system class
 
-from copy import deepcopy
 
 from bus.bus import AxiMaster, Bus, AxiSlave
 from cpu.cpu import CPU
@@ -186,8 +185,7 @@ class XAlp(System):
     def connect_domain(self, domain: PeripheralDomain):
         """
         Connects a domain to the system. The domain should already contain
-        all peripherals well configured. When connecting a domain, a
-        deepcopy is made to avoid side effects.
+        all peripherals well configured.
 
         Any number of domains can be connected, each one is an independent
         bus node and can be grouped with others in power / clock-gating
@@ -234,19 +232,19 @@ class XAlp(System):
         power_domains = {}
         for d in self._domains:
             if d.has_power_domain():
-                power_domains.setdefault(d.get_power_domain(), []).append(deepcopy(d))
+                power_domains.setdefault(d.get_power_domain(), []).append(d)
         return power_domains
 
     def get_always_on_domains(self):
         """
-        :return: A deepcopy of the list of always-on domains (no switchable power domain).
+        :return: The always-on domains (no switchable power domain).
         :rtype: list[PeripheralDomain]
         """
-        return [deepcopy(d) for d in self._domains if d.is_always_on()]
+        return [d for d in self._domains if d.is_always_on()]
 
     def get_clock_gated_domains(self):
         """
-        :return: A deepcopy of the list of domains that support clock gating.
+        :return: The domains that support clock gating.
         :rtype: list[PeripheralDomain]
         """
-        return [deepcopy(d) for d in self._domains if d.has_clock_gating()]
+        return [d for d in self._domains if d.has_clock_gating()]
