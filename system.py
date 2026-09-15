@@ -24,14 +24,13 @@ class System:
 
     Holds the parts shared by every system flavor (X-HEEP, X-ALP, ...):
     bus type, CPU, CORE-V eXtension Interface, memory subsystem, peripheral
-    subsystems, pad ring and user-defined extensions. Concrete systems
+    domains, pad ring and user-defined extensions. Concrete systems
     (e.g. :class:`XHeep`, :class:`XAlp`) inherit from this class and add
     their specific components and configuration style.
 
-    Peripherals are organized in peripheral subsystems (see
-    :class:`PeripheralDomain`): each subsystem is an independent group of
-    peripherals with its own address range. Any number of subsystems can be
-    added to the system.
+    Peripherals are organized in domains (see :class:`PeripheralDomain`):
+    each domain is an independent group of peripherals with its own address
+    range. Any number of domains can be added to the system.
 
     An instance of a subclass of this class is passed to the mako
     templates to generate and describe the system.
@@ -72,7 +71,7 @@ class System:
 
         self._address_map: AddressMap = None
 
-        self._peripheral_subsystems: List[PeripheralDomain] = []
+        self._domains: List[PeripheralDomain] = []
 
         self._padring: PadRing = None
 
@@ -231,81 +230,79 @@ class System:
         return self._address_map
 
     # ------------------------------------------------------------
-    # Peripheral Subsystems
+    # Peripheral Domains
     # ------------------------------------------------------------
 
     def get_peripherals(self):
         """
-        :return: List of all peripherals configured in the system, gathered from its peripheral subsystems.
+        :return: List of all peripherals configured in the system, gathered from its domains.
         :rtype: list[Peripheral]
         """
         return [
             peripheral
-            for ss in self._peripheral_subsystems
-            for peripheral in ss.get_peripherals()
+            for d in self._domains
+            for peripheral in d.get_peripherals()
         ]
 
-    def add_peripheral_subsystem(self, subsystem: PeripheralDomain):
+    def add_domain(self, domain: PeripheralDomain):
         """
-        Add a peripheral subsystem to the system. The subsystem should
-        already contain all peripherals well configured. When adding a
-        subsystem, a deepcopy is made to avoid side effects.
+        Add a domain to the system. The domain should already contain all
+        peripherals well configured. When adding a domain, a deepcopy is
+        made to avoid side effects.
 
-        :param PeripheralDomain subsystem: The subsystem to add.
-        :raise TypeError: when subsystem is of incorrect type.
-        :raise ValueError: when a subsystem with the same name is already present.
+        :param PeripheralDomain domain: The domain to add.
+        :raise TypeError: when domain is of incorrect type.
+        :raise ValueError: when a domain with the same name is already present.
         """
-        if not isinstance(subsystem, PeripheralDomain):
+        if not isinstance(domain, PeripheralDomain):
             raise TypeError(
-                f"{type(self).__name__} peripheral subsystems should be of type PeripheralDomain not {type(subsystem)}"
+                f"{type(self).__name__} domains should be of type PeripheralDomain not {type(domain)}"
             )
-        if any(
-            ss.get_name() == subsystem.get_name() for ss in self._peripheral_subsystems
-        ):
+        if any(d.get_name() == domain.get_name() for d in self._domains):
             raise ValueError(
-                f"A peripheral subsystem named {subsystem.get_name()} is already present in the system"
+                f"A domain named {domain.get_name()} is already present in the system"
             )
-        self._peripheral_subsystems.append(deepcopy(subsystem))
+        self._domains.append(deepcopy(domain))
 
-    def remove_peripheral_subsystem(self, name: str):
+    def remove_domain(self, name: str):
         """
-        Remove a peripheral subsystem from the system, together with the
-        peripherals it brought in.
+        Remove a domain from the system, together with the peripherals it
+        brought in.
 
         Note: :class:`PeripheralDomain` appends " Peripheral Domain" to the
         name given at construction, so the full name returned by
         `get_name()` must be passed (e.g. "Base Peripheral Domain").
 
-        :param str name: The full name of the subsystem to remove.
+        :param str name: The full name of the domain to remove.
         """
-        for ss in self._peripheral_subsystems:
-            if ss.get_name() == name:
-                self._peripheral_subsystems.remove(ss)
+        for d in self._domains:
+            if d.get_name() == name:
+                self._domains.remove(d)
                 return
-        print(f"Warning : Peripheral subsystem {name} is not in the system")
+        print(f"Warning : Domain {name} is not in the system")
 
-    def _find_peripheral_subsystem(self, subsystem_type):
+    def _find_domain(self, domain_type):
         """
-        Returns the stored peripheral subsystem of the given type, not a copy,
-        so that callers can build or validate it in place.
+        Returns the stored domain of the given type, not a copy, so that
+        callers can build or validate it in place.
 
-        :param type subsystem_type: The subsystem class to look for.
-        :return: The stored subsystem, `None` if not present.
+        :param type domain_type: The domain class to look for.
+        :return: The stored domain, `None` if not present.
         :rtype: PeripheralDomain
         """
-        for ss in self._peripheral_subsystems:
-            if isinstance(ss, subsystem_type):
-                return ss
+        for d in self._domains:
+            if isinstance(d, domain_type):
+                return d
         return None
 
-    def get_peripheral_subsystems(self):
+    def get_domains(self):
         """
-        Returns a deepcopy of the list of all peripheral subsystems.
+        Returns a deepcopy of the list of all domains.
 
-        :return: The peripheral subsystems.
+        :return: The domains.
         :rtype: list[PeripheralDomain]
         """
-        return [deepcopy(ss) for ss in self._peripheral_subsystems]
+        return [deepcopy(d) for d in self._domains]
 
     def get_available_peripherals(self):
         """
@@ -327,8 +324,8 @@ class System:
         :rtype: list[str]
         """
         names = []
-        for ss in self._peripheral_subsystems:
-            names.extend(peripheral.get_name() for peripheral in ss.get_peripherals())
+        for d in self._domains:
+            names.extend(peripheral.get_name() for peripheral in d.get_peripherals())
         return names
 
     # ------------------------------------------------------------
@@ -391,12 +388,12 @@ class System:
     def build(self):
         """
         Makes the system ready to be used. Builds the memory subsystem and
-        every peripheral subsystem.
+        every domain.
         """
         if self.memory_ss():
             self.memory_ss().build()
-        for ss in self._peripheral_subsystems:
-            ss.build()
+        for d in self._domains:
+            d.build()
 
     def validate(self):
         """
@@ -420,32 +417,30 @@ class System:
         if self.memory_ss():
             self.memory_ss().validate()
 
-        # Check that each peripheral subsystem is valid
-        for ss in self._peripheral_subsystems:
-            ss.validate()
+        # Check that each domain is valid
+        for d in self._domains:
+            d.validate()
 
-        # Check that peripheral subsystems do not overlap
-        subsystems_sorted = sorted(
-            self._peripheral_subsystems, key=lambda ss: ss.get_start_address()
-        )
-        for current, next_ss in zip(subsystems_sorted, subsystems_sorted[1:]):
-            if current.get_start_address() == next_ss.get_start_address():
+        # Check that domains do not overlap
+        domains_sorted = sorted(self._domains, key=lambda d: d.get_start_address())
+        for current, next_d in zip(domains_sorted, domains_sorted[1:]):
+            if current.get_start_address() == next_d.get_start_address():
                 raise RuntimeError(
-                    f"[MCU-GEN] ERROR: The peripheral subsystems {current.get_name()} and {next_ss.get_name()} should not start at the same address (current address is {current.get_start_address():#08X})."
+                    f"[MCU-GEN] ERROR: The domains {current.get_name()} and {next_d.get_name()} should not start at the same address (current address is {current.get_start_address():#08X})."
                 )
             if (
                 current.get_start_address() + current.get_length()
-                > next_ss.get_start_address()
+                > next_d.get_start_address()
             ):
                 raise RuntimeError(
-                    f"[MCU-GEN] ERROR: The peripheral subsystem {current.get_name()} (ends at {current.get_start_address() + current.get_length():#08X}) overflows over {next_ss.get_name()} (starts at {next_ss.get_start_address():#08X})."
+                    f"[MCU-GEN] ERROR: The domain {current.get_name()} (ends at {current.get_start_address() + current.get_length():#08X}) overflows over {next_d.get_name()} (starts at {next_d.get_start_address():#08X})."
                 )
 
-        # Check that all subsystems start above the protected low address range
-        for ss in self._peripheral_subsystems:
-            if ss.get_start_address() < 0x10000:
+        # Check that all domains start above the protected low address range
+        for d in self._domains:
+            if d.get_start_address() < 0x10000:
                 raise RuntimeError(
-                    f"[MCU-GEN] ERROR: Peripheral subsystem start address must be greater than 0x10000, current address of {ss.get_name()} is {ss.get_start_address():#08X}."
+                    f"[MCU-GEN] ERROR: Domain start address must be greater than 0x10000, current address of {d.get_name()} is {d.get_start_address():#08X}."
                 )
 
         if not self._padring:

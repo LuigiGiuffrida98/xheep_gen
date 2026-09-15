@@ -59,10 +59,10 @@ class XHeep(System):
             raise ValueError(
                 "Domain is neither a BasePeripheralDomain nor a UserPeripheralDomain"
             )
-        existing = self._find_peripheral_subsystem(type(domain))
+        existing = self._find_domain(type(domain))
         if existing is not None:
-            self.remove_peripheral_subsystem(existing.get_name())
-        self.add_peripheral_subsystem(domain)
+            self.remove_domain(existing.get_name())
+        self.add_domain(domain)
 
     def get_base_peripheral_domain(self):
         """
@@ -71,7 +71,7 @@ class XHeep(System):
         :return: The base peripheral domain, `None` if not present.
         :rtype: BasePeripheralDomain
         """
-        return deepcopy(self._find_peripheral_subsystem(BasePeripheralDomain))
+        return deepcopy(self._find_domain(BasePeripheralDomain))
 
     def get_user_peripheral_domain(self):
         """
@@ -80,21 +80,21 @@ class XHeep(System):
         :return: The user peripheral domain, `None` if not present.
         :rtype: UserPeripheralDomain
         """
-        return deepcopy(self._find_peripheral_subsystem(UserPeripheralDomain))
+        return deepcopy(self._find_domain(UserPeripheralDomain))
 
     def are_base_peripherals_configured(self) -> bool:
         """
         :return: `True` if the base peripherals are configured, `False` otherwise.
         :rtype: bool
         """
-        return self._find_peripheral_subsystem(BasePeripheralDomain) is not None
+        return self._find_domain(BasePeripheralDomain) is not None
 
     def are_user_peripherals_configured(self) -> bool:
         """
         :return: `True` if the user peripherals are configured, `False` otherwise.
         :rtype: bool
         """
-        return self._find_peripheral_subsystem(UserPeripheralDomain) is not None
+        return self._find_domain(UserPeripheralDomain) is not None
 
     # ------------------------------------------------------------
     # Linker Script Configuration
@@ -192,11 +192,11 @@ class XHeep(System):
         if self.linker_script():
             self.linker_script().build(self.memory_ss().linker_data_region_size())
         if self.address_map() and self.are_base_peripherals_configured():
-            self._find_peripheral_subsystem(BasePeripheralDomain).build(
+            self._find_domain(BasePeripheralDomain).build(
                 self.address_map().get_region("base_peripheral_domain").get_length()
             )
         if self.address_map() and self.are_user_peripherals_configured():
-            self._find_peripheral_subsystem(UserPeripheralDomain).build(
+            self._find_domain(UserPeripheralDomain).build(
                 self.address_map().get_region("user_peripheral_domain").get_length()
             )
         if self._interrupts:
@@ -238,7 +238,7 @@ class XHeep(System):
         self.address_map().validate()
 
         if self.are_base_peripherals_configured():
-            self._find_peripheral_subsystem(BasePeripheralDomain).validate(
+            self._find_domain(BasePeripheralDomain).validate(
                 self.address_map().get_region("base_peripheral_domain").get_length(),
                 self._bus_type,
             )
@@ -247,7 +247,7 @@ class XHeep(System):
                 "[MCU-GEN] ERROR: Base peripheral domain must be configured"
             )
         if self.are_user_peripherals_configured():
-            self._find_peripheral_subsystem(UserPeripheralDomain).validate(
+            self._find_domain(UserPeripheralDomain).validate(
                 self.address_map().get_region("user_peripheral_domain").get_length()
             )
         else:

@@ -26,7 +26,7 @@ from .base_peripherals import (
 
 class BasePeripheralDomain(PeripheralDomain):
     """
-    Subsystem for base peripherals (always-on domain). All base peripherals must be added.
+    Domain for base peripherals (always-on). All base peripherals must be added.
     """
 
     _peripheral_type = BasePeripheral

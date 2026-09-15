@@ -324,7 +324,7 @@ class PeripheralDomain:
         """
         Return the address space length to use: the one given by the caller
         (X-HEEP takes it from the system address map) or, when omitted, the
-        one given at construction (X-ALP subsystems are independent bus nodes
+        one given at construction (X-ALP domains are independent bus nodes
         that carry their own window).
 
         :param int address_length: The length given by the caller, or `None`.

@@ -15,7 +15,7 @@ from .user_peripherals import PDM2PCM
 
 class UserPeripheralDomain(PeripheralDomain):
     """
-    Subsystem for user peripherals (switchable domain). All user peripherals must be added.
+    Domain for user peripherals (switchable). All user peripherals must be added.
     """
 
     _peripheral_type = UserPeripheral

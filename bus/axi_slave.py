@@ -12,7 +12,7 @@ class AxiSlave:
     EXT_SLAVE).
 
     Exposes the same name/address accessors as peripherals and peripheral
-    subsystems so the address generator can treat every AXI slave uniformly.
+    domains so the address generator can treat every AXI slave uniformly.
 
     A slave may own more than one disjoint address window while still being a
     single crossbar port: the LLC, for instance, answers both its SPM window

@@ -25,11 +25,11 @@ class XAlp(System):
     Inherits the generic system infrastructure from :class:`System`. The
     configuration is address-map centric: the configuration script declares
     the top-level :class:`AddressMap` regions and connects the components
-    (CPU, debug subsystem, memory subsystem, peripheral subsystems). The
-    AXI bus is not written by hand, it is derived from that configuration
-    when :meth:`build` is called. Each peripheral subsystem is an
-    independent bus node and can be grouped with others in power and
-    clock-gating domains (see :class:`PeripheralDomain`).
+    (CPU, debug subsystem, memory subsystem, domains). The AXI bus is not
+    written by hand, it is derived from that configuration when
+    :meth:`build` is called. Each domain is an independent bus node and can
+    be grouped with others in power and clock-gating domains (see
+    :class:`PeripheralDomain`).
 
     :param str platform_name: The name of the platform.
     """
@@ -99,9 +99,9 @@ class XAlp(System):
 
         Slaves are the memory subsystem window (when a memory subsystem is
         connected) plus one node per address map region, keeping the region
-        name. A region that covers a connected peripheral subsystem is added
-        as that subsystem, so its register-interface peripherals become REG
-        slaves nested in its window.
+        name. A region that covers a connected domain is added as that
+        domain, so its register-interface peripherals become REG slaves
+        nested in its window.
 
         :return: The derived bus.
         :rtype: Bus
@@ -129,15 +129,14 @@ class XAlp(System):
                 memory_slave.add_window(name, base, size)
             slaves.append(memory_slave)
 
-        subsystems = {
-            subsystem.get_start_address(): subsystem
-            for subsystem in self._peripheral_subsystems
+        domains = {
+            domain.get_start_address(): domain for domain in self._domains
         }
         address_map = self.address_map()
         for region in address_map.get_regions() if address_map else []:
-            subsystem = subsystems.get(region.get_start_address())
-            if subsystem is not None:
-                slaves.append(subsystem)
+            domain = domains.get(region.get_start_address())
+            if domain is not None:
+                slaves.append(domain)
             else:
                 slaves.append(
                     AxiSlave(
@@ -184,34 +183,34 @@ class XAlp(System):
         """
         self.set_memory_ss(memory_ss)
 
-    def connect_peripheral_subsystem(self, subsystem: PeripheralDomain):
+    def connect_domain(self, domain: PeripheralDomain):
         """
-        Connects a peripheral subsystem to the system. The subsystem should
-        already contain all peripherals well configured. When connecting a
-        subsystem, a deepcopy is made to avoid side effects.
+        Connects a domain to the system. The domain should already contain
+        all peripherals well configured. When connecting a domain, a
+        deepcopy is made to avoid side effects.
 
-        Any number of subsystems can be connected, each one is an independent
+        Any number of domains can be connected, each one is an independent
         bus node and can be grouped with others in power / clock-gating
         domains.
 
-        :param PeripheralDomain subsystem: The subsystem to connect.
-        :raise TypeError: when subsystem is of incorrect type.
-        :raise ValueError: when a subsystem with the same name is already connected.
+        :param PeripheralDomain domain: The domain to connect.
+        :raise TypeError: when domain is of incorrect type.
+        :raise ValueError: when a domain with the same name is already connected.
         """
-        self.add_peripheral_subsystem(subsystem)
+        self.add_domain(domain)
 
-    def disconnect_peripheral_subsystem(self, name: str):
+    def disconnect_domain(self, name: str):
         """
-        Disconnects a peripheral subsystem from the system.
+        Disconnects a domain from the system.
 
         Note: :class:`PeripheralDomain` appends " Peripheral Domain" to the
         name of the region given at construction, so the full name returned
         by `get_name()` must be passed (e.g. "peripheral_domain Peripheral
         Domain").
 
-        :param str name: The full name of the subsystem to disconnect.
+        :param str name: The full name of the domain to disconnect.
         """
-        self.remove_peripheral_subsystem(name)
+        self.remove_domain(name)
 
     def get_cache(self) -> LLC:
         """
@@ -227,29 +226,27 @@ class XAlp(System):
 
     def get_power_domains(self):
         """
-        Groups the connected peripheral subsystems by power domain.
+        Groups the connected domains by power domain.
 
-        :return: A dictionary mapping each power domain name to the list of subsystems belonging to it. Always-on subsystems (no power domain) are not included.
+        :return: A dictionary mapping each power domain name to the list of domains belonging to it. Always-on domains (no power domain) are not included.
         :rtype: dict[str, list[PeripheralDomain]]
         """
-        domains = {}
-        for ss in self._peripheral_subsystems:
-            if ss.has_power_domain():
-                domains.setdefault(ss.get_power_domain(), []).append(deepcopy(ss))
-        return domains
+        power_domains = {}
+        for d in self._domains:
+            if d.has_power_domain():
+                power_domains.setdefault(d.get_power_domain(), []).append(deepcopy(d))
+        return power_domains
 
-    def get_always_on_subsystems(self):
+    def get_always_on_domains(self):
         """
-        :return: A deepcopy of the list of always-on peripheral subsystems (no switchable power domain).
+        :return: A deepcopy of the list of always-on domains (no switchable power domain).
         :rtype: list[PeripheralDomain]
         """
-        return [deepcopy(ss) for ss in self._peripheral_subsystems if ss.is_always_on()]
+        return [deepcopy(d) for d in self._domains if d.is_always_on()]
 
-    def get_clock_gated_subsystems(self):
+    def get_clock_gated_domains(self):
         """
-        :return: A deepcopy of the list of peripheral subsystems that support clock gating.
+        :return: A deepcopy of the list of domains that support clock gating.
         :rtype: list[PeripheralDomain]
         """
-        return [
-            deepcopy(ss) for ss in self._peripheral_subsystems if ss.has_clock_gating()
-        ]
+        return [deepcopy(d) for d in self._domains if d.has_clock_gating()]
