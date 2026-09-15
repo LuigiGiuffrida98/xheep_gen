@@ -1,3 +1,10 @@
+# Copyright 2026 Politecnico di Torino
+# Licensed under the Apache License, Version 2.0, see LICENSE for details.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Author(s): Luigi Giuffrida
+# Description: X-ALP system class
+
 from copy import deepcopy
 
 from bus.bus import AxiMaster, Bus, AxiSlave

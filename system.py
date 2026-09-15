@@ -1,3 +1,10 @@
+# Copyright 2026 Politecnico di Torino
+# Licensed under the Apache License, Version 2.0, see LICENSE for details.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Author(s): Luigi Giuffrida
+# Description: Generic representation of a generated system.
+
 from copy import deepcopy
 from typing import List
 
