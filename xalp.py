@@ -1,6 +1,6 @@
 from copy import deepcopy
 
-from bus import AxiMaster, Bus, BusSlave
+from bus.bus import AxiMaster, Bus, AxiSlave
 from cpu.cpu import CPU
 from memory_ss.memory_ss import MemorySS
 from peripherals.abstractions import PeripheralDomain
@@ -117,7 +117,7 @@ class XAlp(System):
             # the first window is the port and the rest are extra rules.
             windows = self.memory_ss().bus_windows(self.MEMORY_START_ADDRESS)
             name, base, size = windows[0]
-            memory_slave = BusSlave(name, base, size)
+            memory_slave = AxiSlave(name, base, size)
             for name, base, size in windows[1:]:
                 memory_slave.add_window(name, base, size)
             slaves.append(memory_slave)
@@ -133,7 +133,7 @@ class XAlp(System):
                 slaves.append(subsystem)
             else:
                 slaves.append(
-                    BusSlave(
+                    AxiSlave(
                         region.get_name(),
                         region.get_start_address(),
                         region.get_length(),
