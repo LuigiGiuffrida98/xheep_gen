@@ -83,19 +83,6 @@ class Peripheral(ABC):
             raise ValueError("Peripheral address should be a positive integer")
         self._address_offset = address
 
-    def use_auto_start_address(self):
-        """
-        Let the bus or domain assign the peripheral start address automatically.
-        """
-        self.set_address(None)
-
-    def has_auto_start_address(self) -> bool:
-        """
-        :return: True if the peripheral address should be automatically assigned.
-        :rtype: bool
-        """
-        return self.get_address() is None
-
     def get_length(self):
         """
         :return: The length of the peripheral.
@@ -109,13 +96,6 @@ class Peripheral(ABC):
         :rtype: str
         """
         return self._name
-
-    def has_master_ports(self) -> bool:
-        """
-        :return: True if the peripheral masters the bus.
-        :rtype: bool
-        """
-        return self._num_master_ports > 0
 
     def get_num_master_ports(self):
         """
@@ -160,6 +140,9 @@ class PeripheralDomain:
     _peripherals: List[
         Peripheral
     ]  # type has to be precised for filtering in validation
+
+    _peripheral_type = Peripheral
+    """The peripheral class this domain accepts. Subclasses narrow it."""
 
     def __init__(
         self,
@@ -212,10 +195,10 @@ class PeripheralDomain:
         automatically computed during build.
 
         :param Peripheral peripheral: The peripheral to add.
-        :raise ValueError: when peripheral is not a Peripheral.
+        :raise ValueError: when peripheral is not of the type the domain accepts.
         """
-        if not isinstance(peripheral, Peripheral):
-            raise ValueError("Peripheral is not a Peripheral")
+        if not isinstance(peripheral, self._peripheral_type):
+            raise ValueError(f"Peripheral is not a {self._peripheral_type.__name__}")
         self._peripherals.append(peripheral)
 
     def remove_peripheral(self, peripheral: Peripheral):
