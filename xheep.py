@@ -96,7 +96,6 @@ class XHeep(System):
         """
         return self._find_peripheral_subsystem(UserPeripheralDomain) is not None
 
-
     # ------------------------------------------------------------
     # Linker Script Configuration
     # ------------------------------------------------------------

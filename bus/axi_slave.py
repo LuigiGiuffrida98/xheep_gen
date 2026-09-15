@@ -5,6 +5,7 @@
 # Author(s): Luigi Giuffrida
 # Description: AXI slave window on the bus (e.g. MEM, DEBUG_MODULE, EXT_SLAVE).
 
+
 class AxiSlave:
     """
     A non-peripheral AXI slave window on the bus (e.g. MEM, DEBUG_MODULE,

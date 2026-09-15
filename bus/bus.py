@@ -21,6 +21,7 @@ def _macro_name(name: str) -> str:
         name = name[: -len(suffix)]
     return name.strip().upper().replace(" ", "_")
 
+
 #: Default window size used when an AXI slave is added without an explicit size.
 DEFAULT_SLAVE_SIZE = 0x1000
 
