@@ -12,18 +12,17 @@ from cpu.cpu import CPU
 from peripherals.peripheral_domain import PeripheralDomain
 from linker_script.linker_script import LinkerScript
 from interrupts.interrupts import Interrupts
-import bus_type
-from peripherals.base_peripherals.W25Q128JW_controller import W25Q128JW_Controller
-from peripherals.base_peripherals.DMA import DMA
 from peripherals.base_peripherals import (
     Bootrom,
+    DMA,
     Ext_peripheral,
     Fast_intr_ctrl,
     Power_manager,
     RV_timer_ao,
+    SOC_ctrl,
     SPI_flash,
+    W25Q128JW_Controller,
 )
-from peripherals.base_peripherals.SOC_ctrl import SOC_ctrl
 
 from copy import deepcopy
 
@@ -78,7 +77,6 @@ class XHeep(System):
         :param PeripheralDomain domain: The domain to add.
         :raise ValueError: when the domain is neither a base nor a user peripheral domain.
         """
-        print(f"Adding peripheral domain {domain.get_name()} to the system")
         if domain.get_name() not in [
             "base_peripheral_domain",
             "user_peripheral_domain",
@@ -92,7 +90,7 @@ class XHeep(System):
     def get_base_peripheral_domain(self):
         """
         :return: The base peripheral domain, `None` if not present.
-        :rtype: BasePeripheralDomain
+        :rtype: PeripheralDomain
         """
         return self._find_domain("base_peripheral_domain")
 
@@ -124,8 +122,10 @@ class XHeep(System):
         # Add all default peripherals
         peripherals_to_add = [deepcopy(p) for p in self._default_base_peripherals]
 
+        domain = self.get_base_peripheral_domain()
+
         # Remove peripherals that are already in the domain to obtain the list of missing peripherals
-        for peripheral in self.get_base_peripheral_domain().get_peripherals():
+        for peripheral in domain.get_peripherals():
             for p in peripherals_to_add:
                 if type(peripheral) == type(p):
                     peripherals_to_add.remove(p)
@@ -133,7 +133,7 @@ class XHeep(System):
 
         # Add the missing peripherals
         for p in peripherals_to_add:
-            self.get_base_peripheral_domain().add_peripheral(p)
+            domain.add_peripheral(p)
 
     # ------------------------------------------------------------
     # Linker Script Configuration
@@ -207,18 +207,9 @@ class XHeep(System):
         Makes the system ready to be used.
         """
 
-        if self.memory_ss():
-            self.memory_ss().build()
+        super().build()
         if self.linker_script():
             self.linker_script().build(self.memory_ss().linker_data_region_size())
-        if self.address_map() and self.are_base_peripherals_configured():
-            self.get_base_peripheral_domain().build(
-                self.address_map().get_region("base_peripheral_domain").get_length()
-            )
-        if self.address_map() and self.are_user_peripherals_configured():
-            self.get_user_peripheral_domain().build(
-                self.address_map().get_region("user_peripheral_domain").get_length()
-            )
         if self._interrupts:
             self._interrupts.build()
 
@@ -259,13 +250,10 @@ class XHeep(System):
 
         if self.are_base_peripherals_configured():
             bp = self.get_base_peripheral_domain()
-            bp.validate(
-                self.address_map().get_region("base_peripheral_domain").get_length()
-            )
-            for p in bp.get_peripherals():
-                if isinstance(p, DMA):
-                    p.validate()
+            bp.validate()
             for peripheral in bp.get_peripherals():
+                if isinstance(peripheral, DMA):
+                    peripheral.validate()
                 if type(peripheral) == W25Q128JW_Controller:
                     peripheral.validate(self._bus_type)
             # Check if all base peripherals are added
@@ -281,16 +269,14 @@ class XHeep(System):
 
             if missing:
                 raise RuntimeError(
-                    f"[MCU-GEN - BasePeripheralDomain] ERROR: Missing base peripherals in domain {self._name}: {', '.join(missing)}"
+                    f"[MCU-GEN] ERROR: Missing base peripherals in domain {bp.get_name()}: {', '.join(missing)}"
                 )
         else:
             raise RuntimeError(
                 "[MCU-GEN] ERROR: Base peripheral domain must be configured"
             )
         if self.are_user_peripherals_configured():
-            self.get_user_peripheral_domain().validate(
-                self.address_map().get_region("user_peripheral_domain").get_length()
-            )
+            self.get_user_peripheral_domain().validate()
         else:
             raise RuntimeError(
                 "[MCU-GEN] ERROR: User peripheral domain must be configured"

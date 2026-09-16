@@ -10,7 +10,7 @@ from copy import deepcopy
 from bus.bus import AxiMaster, Bus, AxiSlave
 from cpu.cpu import CPU
 from memory_ss.memory_ss import MemorySS
-from peripherals.abstractions import PeripheralDomain
+from peripherals.peripheral_domain import PeripheralDomain
 from peripherals.base_peripherals.llc import LLC
 from system import System
 from bus_type import BusType
@@ -58,7 +58,7 @@ class XAlp(System):
     """Start address of the memory subsystem window on the bus."""
 
     def __init__(self, platform_name: str):
-        super().__init__(BusType.AXI)
+        super().__init__()
         self._platform_name = platform_name
         self._bus = None
 
@@ -184,8 +184,8 @@ class XAlp(System):
     def connect_domain(self, domain: PeripheralDomain):
         """
         Connects a domain to the system. The domain should already contain
-        all peripherals well configured. When connecting a domain, a
-        deepcopy is made to avoid side effects.
+        all peripherals well configured. Its name must match the name of the
+        address map region it is mapped to.
 
         Any number of domains can be connected, each one is an independent
         bus node and can be grouped with others in power / clock-gating
@@ -201,12 +201,7 @@ class XAlp(System):
         """
         Disconnects a domain from the system.
 
-        Note: :class:`PeripheralDomain` appends " Peripheral Domain" to the
-        name of the region given at construction, so the full name returned
-        by `get_name()` must be passed (e.g. "peripheral_domain Peripheral
-        Domain").
-
-        :param str name: The full name of the domain to disconnect.
+        :param str name: The name of the domain to disconnect.
         """
         self.remove_domain(name)
 

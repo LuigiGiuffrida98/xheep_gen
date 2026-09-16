@@ -256,11 +256,7 @@ class System:
         Remove a domain from the system, together with the peripherals it
         brought in.
 
-        Note: :class:`PeripheralDomain` appends " Peripheral Domain" to the
-        name given at construction, so the full name returned by
-        `get_name()` must be passed (e.g. "Base Peripheral Domain").
-
-        :param str name: The full name of the domain to remove.
+        :param str name: The name of the domain to remove.
         """
         for d in self._domains:
             if d.get_name() == name:
@@ -377,6 +373,19 @@ class System:
         if self.memory_ss():
             self.memory_ss().build()
         for d in self._domains:
+            # A domain carries no window of its own: it takes the one of the
+            # address map region sharing its name.
+            region = (
+                self.address_map().get_region(d.get_name())
+                if self.address_map()
+                else None
+            )
+            if region is None:
+                raise RuntimeError(
+                    f"[MCU-GEN] ERROR: No address map region named {d.get_name()} for the domain of the same name"
+                )
+            d.set_start_address(region.get_start_address())
+            d.set_length(region.get_length())
             d.build()
 
     def validate(self):

@@ -1,6 +1,7 @@
 from typing import List, Optional
 from peripherals.abstractions import Peripheral
-from address_map.address_region import AddressRegion
+from peripherals.base_peripherals import DMA, Power_manager, W25Q128JW_Controller
+from peripherals.user_peripherals import PDM2PCM
 from copy import deepcopy
 
 
@@ -11,9 +12,7 @@ class PeripheralDomain:
     support clock gating, so that domains can be grouped and switched off or
     clock gated together.
 
-    :param str name: The name of the peripheral domain. Convention : starts with a capital letter and is in singular form (no "peripheral domain" at the end)
-    :param int start_address: The start address of the peripheral domain.
-    :param int length: The length of the peripheral domain.
+    :param str name: The name of the peripheral domain. It must match the name of the address map region the domain is mapped to.
     :param str power_domain: The name of the power domain the domain belongs to. `None` means always-on. Domains sharing the same power domain name are switched on/off together.
     :param bool clock_gating: `True` if the domain supports clock gating.
     :param list[Peripheral] peripherals: The list of peripherals in the domain. There can be more than one instance of the same peripheral.
@@ -28,9 +27,6 @@ class PeripheralDomain:
         Peripheral
     ]  # type has to be precised for filtering in validation
 
-    _peripheral_type = Peripheral
-    """The peripheral class this domain accepts. Subclasses narrow it."""
-
     def __init__(
         self,
         name: Optional[str] = None,
@@ -41,9 +37,7 @@ class PeripheralDomain:
         """
         Initialize the peripheral domain.
 
-        :param str name: The name of the peripheral domain. Convention : starts with a capital letter and is in singular form (no "peripheral domain" at the end)
-        :param int start_address: The start address of the peripheral domain. `None` when the domain address is taken from the system address map.
-        :param int length: The length of the peripheral domain. `None` when the domain length is taken from the system address map.
+        :param str name: The name of the peripheral domain. It must match the name of the address map region the domain is mapped to: the system takes the start address and the length from that region at build time.
         :param str power_domain: The name of the power domain the domain belongs to. `None` means always-on.
         :param bool clock_gating: `True` if the domain supports clock gating.
         :param list[Peripheral] peripherals: Optional initial list of peripherals.
@@ -57,6 +51,8 @@ class PeripheralDomain:
                 f"PeripheralDomain.clock_gating should be of type bool not {type(clock_gating)}"
             )
         self._name = name
+        self._start_address = None
+        self._length = None
         self._power_domain = power_domain
         self._clock_gating = clock_gating
         self._peripherals = []
@@ -80,10 +76,10 @@ class PeripheralDomain:
         automatically computed during build.
 
         :param Peripheral peripheral: The peripheral to add.
-        :raise ValueError: when peripheral is not of the type the domain accepts.
+        :raise ValueError: when peripheral is not a Peripheral.
         """
-        if not isinstance(peripheral, self._peripheral_type):
-            raise ValueError(f"Peripheral is not a {self._peripheral_type.__name__}")
+        if not isinstance(peripheral, Peripheral):
+            raise ValueError("Peripheral is not a Peripheral")
         self._peripherals.append(peripheral)
 
     def remove_peripheral(self, peripheral: Peripheral):
@@ -160,14 +156,14 @@ class PeripheralDomain:
 
     def get_start_address(self):
         """
-        :return: The start address of the peripheral domain, `None` when it is taken from the system address map.
+        :return: The start address of the peripheral domain, `None` before the system resolved it from the address map.
         :rtype: int
         """
         return self._start_address
 
     def get_length(self):
         """
-        :return: The length of the peripheral domain, `None` when it is taken from the system address map.
+        :return: The length of the peripheral domain, `None` before the system resolved it from the address map.
         :rtype: int
         """
         return self._length
@@ -221,12 +217,65 @@ class PeripheralDomain:
         """
         return any(p.get_name() == peripheral_name for p in self._peripherals)
 
+    def get_all_dmas(self):
+        """
+        :return: The DMA peripherals of the domain.
+        :rtype: list[DMA]
+        :raise ValueError: when the domain holds no DMA.
+        """
+        dmas = [deepcopy(p) for p in self._peripherals if isinstance(p, DMA)]
+        if len(dmas) == 0:
+            raise ValueError("No DMA peripheral found")
+        return dmas
+
+    def get_dma(self):
+        """
+        Get the main DMA peripheral (the first appended DMA peripheral).
+
+        :return: The DMA peripheral.
+        :rtype: DMA
+        """
+        return self.get_all_dmas()[0]
+
+    def get_power_manager(self):
+        """
+        :return: The Power_manager peripheral.
+        :rtype: Power_manager
+        :raise ValueError: when the domain holds no Power_manager.
+        """
+        for p in self._peripherals:
+            if isinstance(p, Power_manager):
+                return p
+        raise ValueError("No Power_manager peripheral found")
+
+    def get_W25Q128JW_controller(self):
+        """
+        :return: The W25Q128JW_Controller peripheral.
+        :rtype: W25Q128JW_Controller
+        :raise ValueError: when the domain holds no W25Q128JW_Controller.
+        """
+        for p in self._peripherals:
+            if isinstance(p, W25Q128JW_Controller):
+                return p
+        raise ValueError("No W25Q128JW_Controller peripheral found")
+
+    def get_pdm2pcm(self):
+        """
+        Get the PDM2PCM peripheral. If several are added, the first one is returned.
+
+        :return: The PDM2PCM peripheral, `None` if not present.
+        :rtype: PDM2PCM
+        """
+        for p in self._peripherals:
+            if isinstance(p, PDM2PCM):
+                return p
+        return None
+
     def _resolve_address_length(self, address_length: Optional[int]) -> int:
         """
         Return the address space length to use: the one given by the caller
-        (X-HEEP takes it from the system address map) or, when omitted, the
-        one given at construction (X-ALP domains are independent bus nodes
-        that carry their own window).
+        or, when omitted, the one the system resolved from the address map
+        region carrying the domain name.
 
         :param int address_length: The length given by the caller, or `None`.
         :return: The length of the address space of the peripheral domain.

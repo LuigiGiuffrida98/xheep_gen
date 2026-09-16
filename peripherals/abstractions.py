@@ -8,10 +8,6 @@
 from abc import (
     ABC,
 )  # Used to define abstract classes that cannot be instantiated, only well defined subclasses can be instantiated.
-from copy import deepcopy
-from typing import List, Optional
-
-from address_map.address_region import AddressRegion
 
 
 class Peripheral(ABC):

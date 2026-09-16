@@ -10,7 +10,7 @@ import warnings
 from bus_type import BusType
 from typing import List, Optional
 
-from peripherals.abstractions import PeripheralDomain
+from peripherals.peripheral_domain import PeripheralDomain
 from bus.axi_slave import AxiSlave
 from bus.axi_master import AxiMaster
 
