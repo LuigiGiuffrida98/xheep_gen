@@ -94,11 +94,12 @@ class XAlp(System):
         one master per master port of every peripheral that masters the bus.
         The external master port always exists and is tied off when unused.
 
-        Slaves are the memory subsystem window (when a memory subsystem is
-        connected) plus one node per address map region, keeping the region
-        name. A region that covers a connected domain is added as that
-        domain, so its register-interface peripherals become REG slaves
-        nested in its window.
+        Slaves are the memory subsystem (when one is connected) plus one node
+        per address map region, keeping the region name. A region that covers
+        a connected domain is added as that domain, so its register-interface
+        peripherals become REG slaves nested in it. A memory subsystem that
+        answers more than one region (the LLC: its scratchpad and its cached
+        region) gets the extra ones as decoder rules onto its port.
 
         :return: The derived bus.
         :rtype: Bus
@@ -115,19 +116,35 @@ class XAlp(System):
         bus.add_master(AxiMaster("ext_master"))
 
         slaves = []
-        if self.memory_ss() is not None:
-            # The linker sections are the windows the memory subsystem
-            # answers. They may be several disjoint ones on a single port (the
-            # LLC: its scratchpad and its cached region), so the lowest one is
-            # the port and the rest are extra rules.
-            sections = sorted(
-                self.memory_ss().iter_linker_sections(), key=lambda s: s.start
-            )
-            memory_slave = AxiSlave(
-                sections[0].name, sections[0].start, sections[0].size
-            )
-            for section in sections[1:]:
-                memory_slave.add_window(section.name, section.start, section.size)
+        # Regions the memory subsystem answers on its port besides the region
+        # of its slave, as ``(name, base, size)``. They become extra decoder
+        # rules once the slave is on the bus.
+        memory_regions = []
+        memory_ss = self.memory_ss()
+        if memory_ss is not None:
+            if memory_ss.ram_numbanks():
+                # RAM banks answer one contiguous region; the linker sections
+                # only carve that region up for the linker.
+                memory_slave = AxiSlave(
+                    "mem",
+                    memory_ss.ram_start_address(),
+                    memory_ss.ram_size_address(),
+                )
+            else:
+                # Without banks the subsystem places its own regions, one
+                # linker section each (the LLC: its scratchpad and its cached
+                # region). They share a single port, so the lowest one is the
+                # region of the slave and the rest are decoded onto it.
+                sections = sorted(
+                    memory_ss.iter_linker_sections(), key=lambda s: s.start
+                )
+                memory_slave = AxiSlave(
+                    sections[0].name, sections[0].start, sections[0].size
+                )
+                memory_regions = [
+                    (section.name, section.start, section.size)
+                    for section in sections[1:]
+                ]
             slaves.append(memory_slave)
 
         domains = {domain.get_start_address(): domain for domain in self._domains}
@@ -149,6 +166,8 @@ class XAlp(System):
         # bus sorted by address.
         for slave in sorted(slaves, key=lambda slave: slave.get_start_address()):
             bus.add_slave(slave)
+        for name, base, size in memory_regions:
+            bus.add_addr_rule(name, base, size, memory_slave)
         bus.build_address_map()
 
         return bus
