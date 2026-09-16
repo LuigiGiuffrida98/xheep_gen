@@ -9,7 +9,7 @@ import hjson
 
 from address_map.address_map import AddressMap
 from address_map.address_region import AddressRegion
-from peripherals.base_peripherals_domain import BasePeripheralDomain
+from peripherals.peripheral_domain import PeripheralDomain
 from peripherals.peripheral_domain import PeripheralDomain
 from peripherals.base_peripherals import (
     SOC_ctrl,
@@ -89,7 +89,7 @@ def load_peripherals_config(system, config: hjson.OrderedDict, address_map: Addr
                 fields=fields,
                 domain_type="base",
                 peripheral_factory_map=base_peripheral_factories,
-                domain_constructor=BasePeripheralDomain,
+                domain_constructor=PeripheralDomain,
                 are_configured_check=system.are_base_peripherals_configured,
                 get_domain_attr=lambda: system._base_peripheral_domain,
             )

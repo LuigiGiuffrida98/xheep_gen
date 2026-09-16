@@ -10,7 +10,6 @@ from bus_type import BusType
 from system import System
 from cpu.cpu import CPU
 from peripherals.peripheral_domain import PeripheralDomain
-from peripherals.base_peripherals_domain import BasePeripheralDomain
 from linker_script.linker_script import LinkerScript
 from interrupts.interrupts import Interrupts
 import bus_type
