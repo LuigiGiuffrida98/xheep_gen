@@ -117,13 +117,18 @@ class LLC(BasePeripheral, MemorySS):
 
     def build(self):
         """
-        Declares the whole SPM and the whole cached region as linker sections
-        when the configuration did not add any of its own, then finalizes the
-        memory subsystem.
+        Declares the whole SPM ("llc") and the whole cached region ("dram") as
+        linker sections when the configuration did not add any of its own,
+        then finalizes the memory subsystem. These sections are what the
+        system reads back to place the two bus windows of the cache.
         """
         if not self._linker_sections:
-            for name, base, size in self.bus_windows(self._spm_start):
-                self.add_linker_section(LinkerSection(name, base, base + size))
+            self.add_linker_section(
+                LinkerSection.by_size("llc", self._spm_start, self.get_spm_size())
+            )
+            self.add_linker_section(
+                LinkerSection.by_size("dram", self._cached_start, self._cached_size)
+            )
         MemorySS.build(self)
 
     def validate(self):
@@ -147,10 +152,10 @@ class LLC(BasePeripheral, MemorySS):
                     f"[MCU-GEN - LLC] ERROR: {name} should be a power of two, got {value}"
                 )
 
-        regions = sorted(self.bus_windows(self._spm_start), key=lambda w: w[1])
-        for (name, base, size), (next_name, next_base, _) in zip(regions, regions[1:]):
-            if base + size > next_base:
+        regions = sorted(self.iter_linker_sections(), key=lambda s: s.start)
+        for region, next_region in zip(regions, regions[1:]):
+            if region.end > next_region.start:
                 raise RuntimeError(
-                    f"[MCU-GEN - LLC] ERROR: The {name} region (ends at {base + size:#010X}) "
-                    f"overlaps {next_name} (starts at {next_base:#010X})."
+                    f"[MCU-GEN - LLC] ERROR: The {region.name} region (ends at {region.end:#010X}) "
+                    f"overlaps {next_region.name} (starts at {next_region.start:#010X})."
                 )

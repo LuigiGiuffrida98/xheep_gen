@@ -54,9 +54,6 @@ class XAlp(System):
     ]
     """Constant list of peripheral names that must be present in X-ALP."""
 
-    MEMORY_START_ADDRESS = 0x00000000
-    """Start address of the memory subsystem window on the bus."""
-
     def __init__(self, platform_name: str):
         super().__init__()
         self._platform_name = platform_name
@@ -119,14 +116,18 @@ class XAlp(System):
 
         slaves = []
         if self.memory_ss() is not None:
-            # A memory subsystem may answer several disjoint windows on a
-            # single port (the LLC: its scratchpad and its cached region), so
-            # the first window is the port and the rest are extra rules.
-            windows = self.memory_ss().bus_windows(self.MEMORY_START_ADDRESS)
-            name, base, size = windows[0]
-            memory_slave = AxiSlave(name, base, size)
-            for name, base, size in windows[1:]:
-                memory_slave.add_window(name, base, size)
+            # The linker sections are the windows the memory subsystem
+            # answers. They may be several disjoint ones on a single port (the
+            # LLC: its scratchpad and its cached region), so the lowest one is
+            # the port and the rest are extra rules.
+            sections = sorted(
+                self.memory_ss().iter_linker_sections(), key=lambda s: s.start
+            )
+            memory_slave = AxiSlave(
+                sections[0].name, sections[0].start, sections[0].size
+            )
+            for section in sections[1:]:
+                memory_slave.add_window(section.name, section.start, section.size)
             slaves.append(memory_slave)
 
         domains = {domain.get_start_address(): domain for domain in self._domains}
