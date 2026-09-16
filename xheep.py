@@ -9,11 +9,24 @@
 from bus_type import BusType
 from system import System
 from cpu.cpu import CPU
-from peripherals.abstractions import PeripheralDomain
+from peripherals.peripheral_domain import PeripheralDomain
 from peripherals.base_peripherals_domain import BasePeripheralDomain
-from peripherals.user_peripherals_domain import UserPeripheralDomain
 from linker_script.linker_script import LinkerScript
 from interrupts.interrupts import Interrupts
+import bus_type
+from peripherals.base_peripherals.W25Q128JW_controller import W25Q128JW_Controller
+from peripherals.base_peripherals.DMA import DMA
+from peripherals.base_peripherals import (
+    Bootrom,
+    Ext_peripheral,
+    Fast_intr_ctrl,
+    Power_manager,
+    RV_timer_ao,
+    SPI_flash,
+)
+from peripherals.base_peripherals.SOC_ctrl import SOC_ctrl
+
+from copy import deepcopy
 
 
 class XHeep(System):
@@ -32,11 +45,23 @@ class XHeep(System):
     AVAILABLE_CPUS = ["cv32e20", "cv32e40p", "cv32e40px", "cv32e40x"]
     """Constant list of CPU names available for X-HEEP."""
 
+    _default_base_peripherals = [
+        SOC_ctrl(),
+        Bootrom(),
+        SPI_flash(),
+        DMA(),
+        Power_manager(),
+        RV_timer_ao(),
+        Fast_intr_ctrl(),
+        Ext_peripheral(),
+    ]
+
     def __init__(
         self,
         bus_type: BusType,
     ):
-        super().__init__(bus_type)
+        super().__init__()
+        self.set_bus_type(bus_type)
         self._linker_script_config: LinkerScript = None
         self._interrupts: Interrupts = None
 
@@ -54,11 +79,13 @@ class XHeep(System):
         :param PeripheralDomain domain: The domain to add.
         :raise ValueError: when the domain is neither a base nor a user peripheral domain.
         """
-        if not isinstance(domain, (BasePeripheralDomain, UserPeripheralDomain)):
-            raise ValueError(
-                "Domain is neither a BasePeripheralDomain nor a UserPeripheralDomain"
-            )
-        existing = self._find_domain(type(domain))
+        print(f"Adding peripheral domain {domain.get_name()} to the system")
+        if domain.get_name() not in [
+            "base_peripheral_domain",
+            "user_peripheral_domain",
+        ]:
+            raise ValueError("Domain is neither a base nor a user peripheral domain.")
+        existing = self._find_domain(domain.get_name())
         if existing is not None:
             self.remove_domain(existing.get_name())
         self.add_domain(domain)
@@ -68,32 +95,51 @@ class XHeep(System):
         :return: The base peripheral domain, `None` if not present.
         :rtype: BasePeripheralDomain
         """
-        return self._find_domain(BasePeripheralDomain)
+        return self._find_domain("base_peripheral_domain")
 
     def get_user_peripheral_domain(self):
         """
         :return: The user peripheral domain, `None` if not present.
-        :rtype: UserPeripheralDomain
+        :rtype: PeripheralDomain
         """
-        return self._find_domain(UserPeripheralDomain)
+        return self._find_domain("user_peripheral_domain")
 
     def are_base_peripherals_configured(self) -> bool:
         """
         :return: `True` if the base peripherals are configured, `False` otherwise.
         :rtype: bool
         """
-        return self._find_domain(BasePeripheralDomain) is not None
+        return self._find_domain("base_peripheral_domain") is not None
 
     def are_user_peripherals_configured(self) -> bool:
         """
         :return: `True` if the user peripherals are configured, `False` otherwise.
         :rtype: bool
         """
-        return self._find_domain(UserPeripheralDomain) is not None
+        return self._find_domain("user_peripheral_domain") is not None
+
+    def add_missing_peripherals(self):
+        """
+        Add missing peripherals to the domain.
+        """
+        # Add all default peripherals
+        peripherals_to_add = [deepcopy(p) for p in self._default_base_peripherals]
+
+        # Remove peripherals that are already in the domain to obtain the list of missing peripherals
+        for peripheral in self.get_base_peripheral_domain().get_peripherals():
+            for p in peripherals_to_add:
+                if type(peripheral) == type(p):
+                    peripherals_to_add.remove(p)
+                    break
+
+        # Add the missing peripherals
+        for p in peripherals_to_add:
+            self.get_base_peripheral_domain().add_peripheral(p)
 
     # ------------------------------------------------------------
     # Linker Script Configuration
     # ------------------------------------------------------------
+
     def set_linker_script_config(self, linker_script_config: LinkerScript):
         """
         Sets the linker script configuration for stack and heap sizes.
@@ -130,18 +176,6 @@ class XHeep(System):
         return self._linker_script_config.heap_size()
 
     # ------------------------------------------------------------
-    # Debug Subsystem
-    # ------------------------------------------------------------
-
-    # ------------------------------------------------------------
-    # Address Map
-    # ------------------------------------------------------------
-
-    # ------------------------------------------------------------
-    # Peripherals
-    # ------------------------------------------------------------
-
-    # ------------------------------------------------------------
     # Interrupts
     # ------------------------------------------------------------
 
@@ -164,14 +198,6 @@ class XHeep(System):
         :rtype: Interrupts
         """
         return self._interrupts
-
-    # ------------------------------------------------------------
-    # Pad Ring
-    # ------------------------------------------------------------
-
-    # ------------------------------------------------------------
-    # Extensions
-    # ------------------------------------------------------------
 
     # ------------------------------------------------------------
     # Build and Validate
@@ -233,10 +259,31 @@ class XHeep(System):
         self.address_map().validate()
 
         if self.are_base_peripherals_configured():
-            self.get_base_peripheral_domain().validate(
-                self.address_map().get_region("base_peripheral_domain").get_length(),
-                self._bus_type,
+            bp = self.get_base_peripheral_domain()
+            bp.validate(
+                self.address_map().get_region("base_peripheral_domain").get_length()
             )
+            for p in bp.get_peripherals():
+                if isinstance(p, DMA):
+                    p.validate()
+            for peripheral in bp.get_peripherals():
+                if type(peripheral) == W25Q128JW_Controller:
+                    peripheral.validate(self._bus_type)
+            # Check if all base peripherals are added
+            missing = []
+            for default_peripheral in self._default_base_peripherals:
+                added = False
+                for peripheral in bp.get_peripherals():
+                    if type(peripheral) == type(default_peripheral):
+                        added = True
+                        break
+                if not added:
+                    missing.append(default_peripheral.get_name())
+
+            if missing:
+                raise RuntimeError(
+                    f"[MCU-GEN - BasePeripheralDomain] ERROR: Missing base peripherals in domain {self._name}: {', '.join(missing)}"
+                )
         else:
             raise RuntimeError(
                 "[MCU-GEN] ERROR: Base peripheral domain must be configured"

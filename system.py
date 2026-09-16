@@ -11,7 +11,7 @@ from bus_type import BusType
 from cpu.cpu import CPU
 from cv_x_if import CvXIf
 from memory_ss.memory_ss import MemorySS
-from peripherals.abstractions import PeripheralDomain
+from peripherals.peripheral_domain import PeripheralDomain
 from pads.pad_ring import PadRing
 from debug_ss.debug_ss import DebugSS
 from address_map.address_map import AddressMap
@@ -50,16 +50,9 @@ class System:
     MINIMUM_PERIPHERALS = []
     """Constant list of peripheral names that must be present."""
 
-    def __init__(
-        self,
-        bus_type: BusType,
-    ):
-        if not type(bus_type) is BusType:
-            raise TypeError(
-                f"{type(self).__name__}.bus_type should be of type BusType not {type(bus_type)}"
-            )
+    def __init__(self):
 
-        self._bus_type: BusType = bus_type
+        self._bus_type: BusType = None
 
         self._cpu = None
         self._xif: CvXIf = None
@@ -237,11 +230,7 @@ class System:
         :return: List of all peripherals configured in the system, gathered from its domains.
         :rtype: list[Peripheral]
         """
-        return [
-            peripheral
-            for d in self._domains
-            for peripheral in d.get_peripherals()
-        ]
+        return [peripheral for d in self._domains for peripheral in d.get_peripherals()]
 
     def add_domain(self, domain: PeripheralDomain):
         """
@@ -279,16 +268,16 @@ class System:
                 return
         print(f"Warning : Domain {name} is not in the system")
 
-    def _find_domain(self, domain_type):
+    def _find_domain(self, name):
         """
-        Returns the stored domain of the given type.
+        Returns the stored domain of the given name.
 
-        :param type domain_type: The domain class to look for.
+        :param str name: The name of the domain to look for.
         :return: The stored domain, `None` if not present.
         :rtype: PeripheralDomain
         """
         for d in self._domains:
-            if isinstance(d, domain_type):
+            if d.get_name() == name:
                 return d
         return None
 

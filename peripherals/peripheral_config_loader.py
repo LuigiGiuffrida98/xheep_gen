@@ -10,7 +10,7 @@ import hjson
 from address_map.address_map import AddressMap
 from address_map.address_region import AddressRegion
 from peripherals.base_peripherals_domain import BasePeripheralDomain
-from peripherals.user_peripherals_domain import UserPeripheralDomain
+from peripherals.peripheral_domain import PeripheralDomain
 from peripherals.base_peripherals import (
     SOC_ctrl,
     Bootrom,
@@ -108,7 +108,7 @@ def load_peripherals_config(system, config: hjson.OrderedDict, address_map: Addr
                 fields=fields,
                 domain_type="user",
                 peripheral_factory_map=user_peripheral_factories,
-                domain_constructor=UserPeripheralDomain,
+                domain_constructor=PeripheralDomain,
                 are_configured_check=system.are_user_peripherals_configured,
                 get_domain_attr=lambda: system._user_peripheral_domain,
             )
